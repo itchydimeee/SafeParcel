@@ -12,7 +12,8 @@
     "firebase-admin": "^13.0.2",
     "next": "^15.1.6",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "vercel": "^61.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
