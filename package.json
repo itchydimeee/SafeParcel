@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "seed": "node --env-file=.env scripts/seed-demo.mjs",
     "start": "next start"
   },
   "dependencies": {

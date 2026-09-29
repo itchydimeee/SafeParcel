@@ -148,39 +148,39 @@ export default function DashboardPage() {
 
       <CodeCard code={code} busy={busy} onCancel={() => void cancelCode()} />
 
-      {!hasActiveCode && (
-        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <h2 className="mb-3 text-sm font-semibold text-slate-400">
-            Generate a passcode
-          </h2>
-          <div className="mb-4 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Code validity">
-            {VALID_HOURS.map((h) => (
-              <button
-                key={h}
-                type="button"
-                role="radio"
-                aria-checked={validHours === h}
-                onClick={() => setValidHours(h)}
-                className={`min-h-12 rounded-xl text-sm font-semibold ${
-                  validHours === h
-                    ? "bg-emerald-500 text-slate-950"
-                    : "border border-slate-700 text-slate-300 active:bg-slate-800"
-                }`}
-              >
-                {h} h
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() => void generate()}
-            disabled={busy}
-            className="min-h-14 w-full rounded-xl bg-emerald-500 text-base font-bold text-slate-950 transition active:bg-emerald-400 disabled:opacity-50"
-          >
-            Generate code
-          </button>
-        </section>
-      )}
+      <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+        <h2 className="mb-3 text-sm font-semibold text-slate-400">
+          {hasActiveCode
+            ? "Generate a new passcode (replaces the active one)"
+            : "Generate a passcode"}
+        </h2>
+        <div className="mb-4 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Code validity">
+          {VALID_HOURS.map((h) => (
+            <button
+              key={h}
+              type="button"
+              role="radio"
+              aria-checked={validHours === h}
+              onClick={() => setValidHours(h)}
+              className={`min-h-12 rounded-xl text-sm font-semibold ${
+                validHours === h
+                  ? "bg-emerald-500 text-slate-950"
+                  : "border border-slate-700 text-slate-300 active:bg-slate-800"
+              }`}
+            >
+              {h} h
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => void generate()}
+          disabled={busy}
+          className="min-h-14 w-full rounded-xl bg-emerald-500 text-base font-bold text-slate-950 transition active:bg-emerald-400 disabled:opacity-50"
+        >
+          Generate code
+        </button>
+      </section>
 
       <p className="text-center text-xs text-slate-500">
         No hardware yet? Test the full flow in the{" "}
