@@ -151,8 +151,8 @@ ${line}
   Presentation flow
     1. Sign in at /login with the email and password above.
     2. Dashboard shows "Demo SafeParcel Box" with passcode ${DEMO_CODE}.
-    3. Open /simulator, use "Manual setup (prototype path)",
-       paste the Box ID and device key, then Connect.
+    3. Open /simulator and tap "Use demo box" (or paste the Box ID
+       and device key via Manual setup).
     4. Type ${DEMO_CODE} on the keypad and press # to open;
        press "Confirm & lock" to close it again.
     5. Dashboard > Generate code issues a fresh one-time passcode.

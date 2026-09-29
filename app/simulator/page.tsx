@@ -23,6 +23,9 @@ interface MachineState {
 const LS_CONFIG = "safedrop-sim-config";
 const LS_EEPROM = "safedrop-sim-eeprom";
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];
+// One-click demo connection — must match scripts/seed-demo.mjs.
+const DEMO_BOX_ID = "demo-box-01";
+const DEMO_DEVICE_KEY = "safedrop-demo-key";
 
 function loadEeprom(): string[] {
   if (typeof window === "undefined") return [];
@@ -98,6 +101,19 @@ export default function SimulatorPage() {
     localStorage.setItem(
       LS_CONFIG,
       JSON.stringify({ boxId: boxId.trim(), deviceKey: deviceKey.trim() })
+    );
+    setConnected(true);
+    setLocked(true);
+    setLcd(["Enter passcode", ""]);
+  }
+
+  /** One-click connect to the seeded demo box (any browser or device). */
+  function connectDemo() {
+    setBoxId(DEMO_BOX_ID);
+    setDeviceKey(DEMO_DEVICE_KEY);
+    localStorage.setItem(
+      LS_CONFIG,
+      JSON.stringify({ boxId: DEMO_BOX_ID, deviceKey: DEMO_DEVICE_KEY })
     );
     setConnected(true);
     setLocked(true);
@@ -433,6 +449,14 @@ export default function SimulatorPage() {
               the claim code (like real hardware does), or paste the Box ID and
               device key directly.
             </p>
+
+            <button
+              type="button"
+              onClick={connectDemo}
+              className="min-h-12 w-full rounded-xl bg-emerald-500 font-semibold text-slate-950 active:bg-emerald-400"
+            >
+              Use demo box
+            </button>
 
             <div className="rounded-xl border border-slate-700 p-3">
               <p className="mb-2 text-xs font-semibold text-slate-400">
