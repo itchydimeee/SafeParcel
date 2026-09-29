@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    sans-serif;
+}
+
+/* LCD look for the simulator */
+.lcd {
+  font-family: ui-monospace, "Cascadia Mono", "Courier New", monospace;
+  background: #0a140a;
+  color: #4ade80;
+  text-shadow: 0 0 6px rgba(74, 222, 128, 0.55);
+}
