@@ -7,3 +7,5 @@ out/
 *.tsbuildinfo
 next-env.d.ts
 firmware/SafeDrop/secrets.h
+
+.vercel
