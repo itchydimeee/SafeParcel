@@ -44,10 +44,10 @@ export function CodeCard({
   }
 
   async function share() {
-    const text = `SafeDrop passcode: ${code!.code} (one-time, expires in ${formatCountdown(remaining)})`;
+    const text = `SafeParcel passcode: ${code!.code} (one-time, expires in ${formatCountdown(remaining)})`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: "SafeDrop passcode", text });
+        await navigator.share({ title: "SafeParcel passcode", text });
         return;
       } catch {
         // user dismissed the sheet — nothing more to do

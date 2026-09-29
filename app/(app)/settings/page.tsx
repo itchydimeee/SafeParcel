@@ -222,7 +222,7 @@ export default function SettingsPage() {
     try {
       const res = await authedFetch(user!, "/api/boxes", {
         method: "POST",
-        body: JSON.stringify({ name: newName.trim() || "My SafeDrop Box" }),
+        body: JSON.stringify({ name: newName.trim() || "My SafeParcel Box" }),
       });
       const body = await res.json().catch(() => null);
       if (!res.ok || !body?.deviceKey) {

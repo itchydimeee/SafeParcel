@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   const name =
     typeof body?.name === "string" && body.name.trim()
       ? body.name.trim().slice(0, 60)
-      : "My SafeDrop Box";
+      : "My SafeParcel Box";
 
   const db = adminDb();
   const boxRef = db.collection("boxes").doc();

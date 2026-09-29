@@ -91,7 +91,7 @@ export default function DashboardPage() {
         </div>
         <h1 className="text-xl font-bold">No box paired yet</h1>
         <p className="mt-2 max-w-60 text-sm text-slate-400">
-          Pair your SafeDrop box to start generating one-time delivery
+          Pair your SafeParcel box to start generating one-time delivery
           passcodes.
         </p>
         <Link

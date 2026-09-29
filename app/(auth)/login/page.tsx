@@ -116,7 +116,7 @@ export default function LoginPage() {
             <path d="M12 22V12" />
           </svg>
         </div>
-        <h1 className="text-2xl font-bold">SafeDrop</h1>
+        <h1 className="text-2xl font-bold">SafeParcel</h1>
         <p className="mt-1 text-sm text-slate-400">
           One-time passcodes for your delivery box
         </p>

@@ -392,7 +392,7 @@ export default function SimulatorPage() {
         <div>
           <h1 className="text-xl font-bold">Box simulator</h1>
           <p className="text-sm text-slate-400">
-            Virtual SafeDrop using the device API
+            Virtual SafeParcel using the device API
           </p>
         </div>
         <Link href="/" className="min-h-12 px-2 py-3 text-sm text-emerald-400">

@@ -3,7 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "@/components/auth-provider";
 
 export const metadata: Metadata = {
-  title: "SafeDrop",
+  title: "SafeParcel",
   description: "One-time passcodes for your parcel delivery box",
 };
 
