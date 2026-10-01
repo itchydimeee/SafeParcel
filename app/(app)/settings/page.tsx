@@ -102,8 +102,9 @@ function PairingResult({
           <span className="font-semibold text-slate-300">
             Production (dynamic):
           </span>{" "}
-          power the box, hold its confirm button for 5 s to open setup mode,
-          join its <code className="text-emerald-300">SafeDrop-Setup</code>{" "}
+          power the box while holding its <code className="text-emerald-300">*</code> key for 5 s
+          to open setup mode, join its{" "}
+          <code className="text-emerald-300">SafeDrop-Setup</code>{" "}
           Wi-Fi, and enter this claim code. The box pairs itself — no
           reflashing.
         </p>

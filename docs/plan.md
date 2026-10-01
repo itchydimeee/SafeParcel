@@ -1,6 +1,6 @@
 # SafeDrop: Prototype Plan (Next.js + Firebase + Arduino)
 
-An automatic safe lock box for parcel delivery. When the owner is not home, the owner generates a one-time passcode in the app and shares it with the delivery driver. The driver enters the passcode on the box keypad, leaves the parcel and takes the payment the owner left inside the box. After closing the lid, the driver presses a confirm button on the box and the box locks itself again.
+An automatic safe lock box for parcel delivery. When the owner is not home, the owner generates a one-time 6-digit passcode in the app and shares it with the delivery driver. The driver enters the passcode on the box keypad, leaves the parcel and takes the payment the owner left inside the box. After closing the lid, the driver presses `#` again and the box locks itself again.
 
 ## 1. How the Arduino "receives" requests: it asks, it isn't sent to
 
@@ -23,7 +23,7 @@ Later options for instant delivery are MQTT or long-polling, but polling is the 
 3. The box syncs and receives `{ codeId, code, ttlSeconds }`. The box has no reliable clock, so it counts `ttlSeconds` down with `millis()`.
 4. The driver types the code and presses `#`. On a match, the box **wipes the code from RAM and writes the used `codeId` to EEPROM**, then unlocks (green LED, servo).
 5. The box reports `used` to the server and retries until it succeeds.
-6. The box stays unlocked while the driver leaves the parcel and takes the payment. When the driver presses the confirm button, the box locks again and reports `closed` to the server.
+6. The box stays unlocked while the driver leaves the parcel and takes the payment. When the driver closes the lid and presses `#` again, the box locks again and reports `closed` to the server.
 7. At expiry the box clears the code, and the server marks it `expired`. Any later sync returns `none`.
 
 The one-time rule is enforced in three places:
@@ -39,11 +39,10 @@ Matching happens on the box, not on the server, so the driver still gets in if t
 | Part | Notes |
 |---|---|
 | Arduino UNO R4 WiFi | Built-in Wi-Fi with HTTPS via `WiFiS3`. An ESP32 also works. |
-| 3x4 membrane keypad | Driver enters the code |
-| 16x2 I2C LCD (address 0x27) | Shows "Enter passcode", "Correct!" or "Incorrect!" |
+| 4x4 membrane keypad (HX-543) | Driver enters the code; A, B, C, D are ignored |
+| 16x2 I2C LCD (address 0x27) | Shows "Enter Code", "Correct passcode" or "Wrong passcode" |
 | Red LED, green LED, 2x 220 ohm resistors | Wrong / correct indicators |
 | Servo motor | MG996R or MG90S for the lock |
-| Push button | Driver confirms the delivery is complete and the box locks again |
 | Passive buzzer (optional) | Key beep and alarm |
 | 5V 3A power supply | Powers the servo separately |
 | 1000 uF capacitor | Across the servo supply to smooth spikes |
@@ -55,12 +54,11 @@ Matching happens on the box, not on the server, so the driver still gets in if t
 | Item | Pins |
 |---|---|
 | Keypad rows | D9, D8, D7, D6 |
-| Keypad columns | D5, D4, D3 |
+| Keypad columns | D5, D4, D3, D2 |
 | LCD | SDA and SCL (A4, A5), 5V, GND |
 | Green LED | D10 through 220 ohm to GND |
 | Red LED | D11 through 220 ohm to GND |
 | Lock servo signal | D12 |
-| Confirm button | A0 (`INPUT_PULLUP`) to GND |
 | Buzzer | A1 |
 | Servo power | External 5V supply, **GND shared with the Arduino** |
 
@@ -76,8 +74,8 @@ State machine:
 
 - `IDLE`: poll `/sync` and show "Enter passcode".
 - `KEYPAD`: driver is typing. `*` clears, `#` submits.
-- `OPEN`: green LED, unlocked, code wiped. The LCD asks the driver to leave the parcel, take the payment and press the confirm button when done.
-- `CONFIRM`: the driver presses the confirm button, so the lock engages and the box reports `closed`.
+- `OPEN`: green LED, unlocked, code wiped. The LCD says "Press # to lock" while the driver leaves the parcel and takes the payment.
+- `#` in `OPEN` locks the box and reports `closed`. It is ignored for the first 1.5 seconds after unlocking so the same press that opened the box can't re-lock it. (There is no separate CONFIRM state and no confirm button.)
 - `LOCKOUT`: after 3 wrong entries, red LED and a 30-second wait.
 
 Behavior details:
@@ -97,7 +95,7 @@ Behavior details:
 | `POST /api/device/claim` | `{ claimCode }` | `{ boxId, deviceKey }` — one-time provisioning; no header needed (the box has no key yet). IP rate limited. |
 | `POST /api/device/used` | `{ boxId, codeId }` | `{ ok: true }` (safe to repeat; marks the code used once) |
 | `POST /api/device/attempt` | `{ boxId, result: "wrong" }` | `{ ok, lockedSeconds }` — `30` when three wrong entries trigger a lockout |
-| `POST /api/device/closed` | `{ boxId }` | `{ ok }` — driver pressed the confirm button, box locked |
+| `POST /api/device/closed` | `{ boxId }` | `{ ok }` — driver pressed `#` after closing the lid, box locked |
 
 ### Owner routes (Firebase ID token in `Authorization: Bearer`)
 
@@ -110,7 +108,7 @@ Behavior details:
 
 ### Provisioning (two paths)
 
-- **Production (dynamic):** pairing issues a hashed, 15-minute claim code. A fresh box opens a `SafeDrop-Setup` Wi-Fi hotspot (confirm button held 5 s at power-on), the owner enters home Wi-Fi + claim code at `http://192.168.4.1`, and the box calls `/api/device/claim` to receive its `boxId` + device key, storing them in EEPROM. No reflashing.
+- **Production (dynamic):** pairing issues a hashed, 15-minute claim code. A fresh box opens a `SafeDrop-Setup` Wi-Fi hotspot (`*` held at power-on for 5 s), the owner enters home Wi-Fi + claim code at `http://192.168.4.1`, and the box calls `/api/device/claim` to receive its `boxId` + device key, storing them in EEPROM. No reflashing.
 - **Prototype (hard-coded):** the device key returned at pairing time is pasted into `secrets.h` and the sketch is flashed.
 
 ## 7. Firestore data model
@@ -134,7 +132,7 @@ Screens:
 - **/ (dashboard)**: Generate code button with a validity picker, the code in large type with copy/share, a countdown to expiry, a status chip (Waiting for box, Synced, Used, Expired) and an online/offline indicator.
 - **/activity**: live event timeline.
 - **/settings**: box name, pairing (device key + 15-minute claim code), default validity, sign out.
-- **/simulator**: a virtual box (keypad, LCD, LEDs, servo, confirm button) that uses the same device API, so the full cycle can be tested, including the used-code failure, without hardware.
+- **/simulator**: a virtual box (4x4 keypad, LCD, LEDs, servo) that uses the same device API, so the full cycle can be tested, including the used-code failure, without hardware.
 
 Project structure:
 
@@ -175,7 +173,7 @@ firestore.rules
 3. **Live dashboard and activity feed.**
 4. **Simulator:** prove the full cycle in the browser.
 5. **Bench hardware:** wire the LCD, keypad and LEDs, and run the state machine with a fake code.
-6. **Servo, confirm button and mechanism:** test the lock with the external supply.
+6. **Servo and mechanism:** test the lock with the external supply.
 7. **Connect the box to the deployed server:** load certificates, then run the end-to-end test.
 8. **Polish:** rules, rate limits, offline handling, enclosure.
 
@@ -183,7 +181,7 @@ firestore.rules
 
 - A new code reaches the box within about 3 seconds.
 - The correct code opens the box once, and entering it again fails.
-- After a correct code the box stays unlocked until the driver presses the confirm button, then locks and reports `closed`.
+- After a correct code the box stays unlocked until the driver presses `#` again, then locks and reports `closed`.
 - Rebooting the box right after a successful entry doesn't bring the code back.
 - An expired code fails on the box and shows as `expired` in the app.
 - Generating a new code replaces the old one.

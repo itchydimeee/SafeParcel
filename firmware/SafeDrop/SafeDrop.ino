@@ -2,11 +2,11 @@
  * SafeDrop — automatic parcel lock box (Arduino UNO R4 WiFi)
  *
  * Flow: the box polls /api/device/sync every ~3 s while idle. The driver
- * types the one-time passcode on the keypad and presses '#'. On a match the
- * box wipes the code from RAM, records the used codeId in EEPROM (so a
- * reboot can't bring it back), unlocks the servo and reports 'used'. The
- * driver leaves the parcel, takes the payment the owner left inside, closes
- * the lid and presses the confirm button — the box locks and reports
+ * types the 6-digit one-time passcode on the keypad and presses '#'. On a
+ * match the box wipes the code from RAM, records the used codeId in EEPROM
+ * (so a reboot can't bring it back), unlocks the servo and reports 'used'.
+ * The driver leaves the parcel, takes the payment the owner left inside,
+ * closes the lid and presses '#' again — the box locks and reports
  * 'closed'. Three wrong entries trigger a 30 s lockout.
  *
  * Two provisioning paths:
@@ -16,7 +16,7 @@
  *    use the dynamic path instead.
  *
  * 2. PRODUCTION (dynamic, no reflash): pair a box in the app to get a
- *    claim code. Hold the confirm button for 5 s at power-on — the box
+ *    claim code. Hold '*' on the keypad for 5 s at power-on — the box
  *    starts setup mode, opens the "SafeDrop-Setup" Wi-Fi hotspot, and you
  *    enter your Wi-Fi + claim code at http://192.168.4.1 from your phone.
  *    The box claims its device key from POST /api/device/claim, stores
@@ -41,21 +41,20 @@
 #include "secrets.h"
 
 // ---------- pins ----------
-const byte ROWS = 4, COLS = 3;
+const byte ROWS = 4, COLS = 4;
 char keys[ROWS][COLS] = {
-  {'1', '2', '3'},
-  {'4', '5', '6'},
-  {'7', '8', '9'},
-  {'*', '0', '#'}
+  {'1', '2', '3', 'A'},
+  {'4', '5', '6', 'B'},
+  {'7', '8', '9', 'C'},
+  {'*', '0', '#', 'D'}
 };
 byte rowPins[ROWS] = {9, 8, 7, 6};
-byte colPins[COLS] = {5, 4, 3};
+byte colPins[COLS] = {5, 4, 3, 2};
 Keypad keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
 
 const byte PIN_GREEN = 10;
 const byte PIN_RED = 11;
 const byte PIN_SERVO = 12;
-const byte PIN_BUTTON = A0;  // confirm button, INPUT_PULLUP, wired to GND
 const byte PIN_BUZZER = A1;
 
 const int SERVO_LOCKED_ANGLE = 0;
@@ -70,7 +69,8 @@ const unsigned long KEYPAD_QUIET_MS = 5000;
 const unsigned long LOCKOUT_MS = 30000UL;
 const unsigned long RED_FLASH_MS = 2000;
 const byte MAX_WRONG_BEFORE_LOCKOUT = 3;
-const byte MAX_CODE_DIGITS = 8;
+const byte CODE_LEN = 6;
+const unsigned long OPEN_GUARD_MS = 1500;  // '#' ignored this long after unlocking
 
 // ---------- EEPROM: used codeIds (survive reboot) ----------
 const byte EE_MAGIC = 0x5D;
@@ -100,19 +100,20 @@ char claimCode[13] = "";
 bool needsClaim = false;
 unsigned long lastClaimAttemptMs = 0;
 
-// ---------- state machine (IDLE / KEYPAD / OPEN / CONFIRM / LOCKOUT) ----------
+// ---------- state machine (IDLE / KEYPAD / OPEN / LOCKOUT) ----------
 enum State { STATE_IDLE, STATE_KEYPAD, STATE_OPEN, STATE_LOCKOUT };
 State state = STATE_IDLE;
 
-char activeCode[MAX_CODE_DIGITS + 1] = "";  // the passcode to match
+char activeCode[CODE_LEN + 1] = "";  // the passcode to match
 char activeCodeId[CODE_ID_LEN + 1] = "";
 unsigned long codeExpiresMs = 0;
 unsigned long lastPollMs = 0;
 unsigned long lastKeyMs = 0;
 unsigned long lockoutUntilMs = 0;
 unsigned long redOffAtMs = 0;
+unsigned long openedAtMs = 0;  // when the box unlocked ('#' guard window)
 byte wrongCount = 0;
-char entry[MAX_CODE_DIGITS + 1] = "";
+char entry[CODE_LEN + 1] = "";
 byte entryLen = 0;
 
 // pending event queue, flushed when Wi-Fi is up
@@ -400,8 +401,8 @@ void pollSync() {
 
   strncpy(activeCodeId, codeId, CODE_ID_LEN);
   activeCodeId[CODE_ID_LEN] = '\0';
-  strncpy(activeCode, code, MAX_CODE_DIGITS);
-  activeCode[MAX_CODE_DIGITS] = '\0';
+  strncpy(activeCode, code, CODE_LEN);
+  activeCode[CODE_LEN] = '\0';
   codeExpiresMs = millis() + (unsigned long)ttlSeconds * 1000UL;
   Serial.print("Code received, ttl(s)=");
   Serial.println(ttlSeconds);
@@ -460,12 +461,13 @@ void handleCorrectEntry() {
   digitalWrite(PIN_RED, LOW);
   beep(1200, 120);
 
-  lcdShow("Correct!", "Leave parcel,");
+  lcdShow("Correct passcode", "");
   delay(1600);
-  lcdShow("take payment,", "press button");
+  lcdShow("Press # to lock", "");
 
+  openedAtMs = millis();
   pendingUsed = true;
-  state = STATE_OPEN;  // CONFIRM happens when the driver presses the button
+  state = STATE_OPEN;  // '#' locks again when the driver is done
 }
 
 void handleWrongEntry() {
@@ -473,17 +475,21 @@ void handleWrongEntry() {
   entry[0] = '\0';
   flashRed();
   beep(300, 400);
-  lcdShow("Incorrect!", "");
+  lcdShow("Wrong passcode", "");
   pendingWrong = true;
   delay(1500);  // let the driver read the message
 }
 
-void handleConfirmButton() {
-  // The driver confirmed the delivery is complete: lock the box.
+void lockBox() {
+  // The driver closed the lid and pressed '#': lock the box again.
   lockBolt();
   digitalWrite(PIN_GREEN, LOW);
   beep(800, 200);
-  lcdShow("Box locked", "Thank you!");
+  lcdShow("Box locked", "");
+  delay(2000);
+  entryLen = 0;
+  entry[0] = '\0';
+  lcdShow("Enter Code", "");
   pendingClosed = true;
   state = STATE_IDLE;
 }
@@ -495,7 +501,7 @@ void startLockout() {
   entry[0] = '\0';
   digitalWrite(PIN_RED, HIGH);
   digitalWrite(PIN_GREEN, LOW);
-  lcdShow("Too many tries", "Locked 30s");
+  lcdShow("Locked 30 sec", "");
   beep(250, 600);
   state = STATE_LOCKOUT;
 }
@@ -504,14 +510,30 @@ void handleKey(char key) {
   lastKeyMs = millis();
   beep(2000, 20);
 
+  if (state == STATE_OPEN) {
+    // '#' locks the box again; ignored briefly after unlocking so the same
+    // press that opened it can't immediately re-lock.
+    if (key == '#' && millis() - openedAtMs > OPEN_GUARD_MS) lockBox();
+    return;
+  }
+
   if (key == '*') {  // clear
     entryLen = 0;
     entry[0] = '\0';
     if (state == STATE_KEYPAD) state = STATE_IDLE;
-    lcdShow("Enter passcode", "");
+    lcdShow("Enter Code", "");
     return;
   }
   if (key == '#') {  // submit
+    if (entryLen < CODE_LEN) {
+      entryLen = 0;
+      entry[0] = '\0';
+      state = STATE_IDLE;
+      lcdShow("Enter 6 digits", "");
+      delay(1200);
+      lcdShow("Enter Code", "");
+      return;
+    }
     if (activeCode[0] == '\0') {
       entryLen = 0;
       entry[0] = '\0';
@@ -529,21 +551,22 @@ void handleKey(char key) {
       } else {
         handleWrongEntry();
         state = STATE_IDLE;
-        lcdShow("Enter passcode", "");
+        lcdShow("Enter Code", "");
       }
     }
     return;
   }
 
-  if (entryLen >= MAX_CODE_DIGITS) return;
+  if (key < '0' || key > '9') return;  // ignore A, B, C, D
+  if (entryLen >= CODE_LEN) return;
   entry[entryLen++] = key;
   entry[entryLen] = '\0';
-  lcdShow("Enter passcode", maskedEntry());
+  lcdShow("Enter Code", maskedEntry());
   if (state == STATE_IDLE) state = STATE_KEYPAD;
 }
 
 const char* maskedEntry() {
-  static char dots[MAX_CODE_DIGITS + 1];
+  static char dots[CODE_LEN + 1];
   for (byte i = 0; i < entryLen; i++) dots[i] = '*';
   dots[entryLen] = '\0';
   return dots;
@@ -712,7 +735,6 @@ void setup() {
 
   pinMode(PIN_GREEN, OUTPUT);
   pinMode(PIN_RED, OUTPUT);
-  pinMode(PIN_BUTTON, INPUT_PULLUP);
   pinMode(PIN_BUZZER, OUTPUT);
 
   lockServo.attach(PIN_SERVO);
@@ -725,16 +747,14 @@ void setup() {
   eepromInit();
   loadConfig();
 
-  // Hold the confirm button at power-on for 5 s -> setup portal
-  if (digitalRead(PIN_BUTTON) == LOW) {
-    lcdShow("Hold 5s for", "setup mode");
-    unsigned long t0 = millis();
-    while (digitalRead(PIN_BUTTON) == LOW && millis() - t0 < 5000) {
-      delay(50);
-    }
-    if (digitalRead(PIN_BUTTON) == LOW && millis() - t0 >= 5000) {
+  // Hold '*' at power-on -> setup portal (5 s window)
+  lcdShow("Hold * for", "setup mode");
+  unsigned long t0 = millis();
+  while (millis() - t0 < 5000) {
+    if (keypad.getKey() == '*') {
       runSetupPortal();  // never returns
     }
+    delay(10);
   }
 
   // Nothing configured at all -> setup portal
@@ -749,7 +769,7 @@ void setup() {
     lcdShow("Claiming box...", claimCode);
     tryClaim();  // if it fails, loop() retries every 30 s
   }
-  lcdShow("Enter passcode", "");
+  lcdShow("Enter Code", "");
 }
 
 void loop() {
@@ -777,7 +797,7 @@ void loop() {
     if (tryClaim()) {
       lcdShow("Box paired!", "");
       delay(1500);
-      lcdShow("Enter passcode", "");
+      lcdShow("Enter Code", "");
     } else {
       lcdShow("Claim failed", "check code/expiry");
     }
@@ -789,25 +809,13 @@ void loop() {
   if (state == STATE_LOCKOUT) {
     if (now > lockoutUntilMs) {
       digitalWrite(PIN_RED, LOW);
-      lcdShow("Enter passcode", "");
+      lcdShow("Enter Code", "");
       state = STATE_IDLE;
     }
     return;  // no keys, no polling during lockout
   }
 
-  if (state == STATE_OPEN) {
-    // wait for the confirm button (active LOW)
-    if (digitalRead(PIN_BUTTON) == LOW) {
-      delay(30);  // debounce
-      if (digitalRead(PIN_BUTTON) == LOW) {
-        handleConfirmButton();
-        delay(300);
-      }
-    }
-    return;
-  }
-
-  // keypad input (IDLE and KEYPAD states)
+  // keypad input (IDLE, KEYPAD and OPEN states)
   char key = keypad.getKey();
   if (key) handleKey(key);
 

@@ -19,12 +19,12 @@ Arduino sketch for the SafeDrop parcel lock box. Designed for the **Arduino UNO 
 ### Production — dynamic (no reflashing)
 
 1. In the app: **Settings → Pair a new box** → copy the **claim code** (valid 15 min).
-2. Power the box and **hold the confirm button for 5 s**. It opens the `SafeDrop-Setup` Wi-Fi hotspot (password `safedrop123`).
+2. Power the box and **hold the `*` key for 5 s**. It opens the `SafeDrop-Setup` Wi-Fi hotspot (password `safedrop123`).
 3. Join that hotspot from your phone and open **http://192.168.4.1**.
 4. Enter your home Wi-Fi name, password and the claim code → **Save and pair**.
 5. The box stores the config in EEPROM, reboots, claims its device key from `POST /api/device/claim` and shows "Box paired!". It then behaves normally — no reflashing ever again.
 
-To re-provision a box (new Wi-Fi or a new claim), hold the confirm button for 5 s at power-on.
+To re-provision a box (new Wi-Fi or a new claim), hold the `*` key for 5 s at power-on.
 
 ### Prototype — hard-coded
 
@@ -34,15 +34,16 @@ Pair a box in the app and paste the **Box ID** and **device key** into `secrets.
 
 | Item | Pins |
 |---|---|
-| Keypad rows | D9, D8, D7, D6 |
-| Keypad columns | D5, D4, D3 |
+| Keypad rows (4x4 HX-543) | D9, D8, D7, D6 |
+| Keypad columns | D5, D4, D3, D2 |
 | LCD 16x2 I2C (0x27) | SDA (A4), SCL (A5), 5V, GND |
 | Green LED | D10 → 220 Ω → GND |
 | Red LED | D11 → 220 Ω → GND |
 | Lock servo signal | D12 |
-| Confirm button | A0 (`INPUT_PULLUP`) → GND |
 | Buzzer (optional) | A1 |
 | Servo power | External 5 V supply, **GND shared with the Arduino** |
+
+The keypad is a 4x4 membrane (HX-543, 8-pin ribbon). The firmware uses only `0`–`9`, `*` (clear) and `#` (enter / lock); the `A`, `B`, `C`, `D` keys are ignored. There is no confirm button — `#` both submits the code and locks the box.
 
 Never power the servo from the Arduino's 5V pin — use the external supply with a 1000 µF capacitor across it.
 
@@ -50,7 +51,7 @@ Never power the servo from the Arduino's 5V pin — use the external supply with
 
 - Polls `/api/device/sync` every 3 s while idle (paused for 5 s after any keypress so the keypad stays responsive), with the `x-device-key` header on every request.
 - On a correct passcode: the used `codeId` is written to EEPROM (survives reboot), the code is wiped from RAM, the bolt unlocks and the green LED lights.
-- The box stays unlocked while the driver leaves the parcel and takes the payment. When the driver presses the confirm button (A0), the box locks and reports `closed`.
+- The box stays unlocked while the driver leaves the parcel and takes the payment. When the driver closes the lid and presses `#` again (ignored for the first 1.5 s after unlocking), the box locks and reports `closed`.
 - Reports (`used`, `wrong`, `closed`) are queued and retried until the server accepts them.
 - Three wrong entries trigger a 30-second lockout with the red LED.
 - Test without hardware using the `/simulator` page in the web app — it implements the same state machine against the same API.

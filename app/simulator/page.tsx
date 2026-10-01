@@ -22,7 +22,15 @@ interface MachineState {
 
 const LS_CONFIG = "safedrop-sim-config";
 const LS_EEPROM = "safedrop-sim-eeprom";
-const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];
+// 4x4 keypad layout, rendered row-major; A/B/C/D are ignored.
+const KEYS = [
+  "1", "2", "3", "A",
+  "4", "5", "6", "B",
+  "7", "8", "9", "C",
+  "*", "0", "#", "D",
+];
+const CODE_LEN = 6;
+const OPEN_GUARD_MS = 1500; // '#' ignored this long after unlocking
 // One-click demo connection — must match scripts/seed-demo.mjs.
 const DEMO_BOX_ID = "demo-box-01";
 const DEMO_DEVICE_KEY = "safedrop-demo-key";
@@ -55,6 +63,7 @@ export default function SimulatorPage() {
 
   const eeprom = useRef<string[]>([]);
   const lastKeyAt = useRef(0);
+  const unlockedAt = useRef(0);
   const lockoutEndMs = useRef(0);
   const pendingUsed = useRef<string | null>(null);
   const pendingClosed = useRef(false);
@@ -89,7 +98,7 @@ export default function SimulatorPage() {
         setBoxId(cfg.boxId);
         setDeviceKey(cfg.deviceKey);
         setConnected(true);
-        setLcd(["Enter passcode", ""]);
+        setLcd(["Enter Code", ""]);
       }
     } catch {
       // first visit — show the config form
@@ -104,7 +113,7 @@ export default function SimulatorPage() {
     );
     setConnected(true);
     setLocked(true);
-    setLcd(["Enter passcode", ""]);
+    setLcd(["Enter Code", ""]);
   }
 
   /** One-click connect to the seeded demo box (any browser or device). */
@@ -117,7 +126,7 @@ export default function SimulatorPage() {
     );
     setConnected(true);
     setLocked(true);
-    setLcd(["Enter passcode", ""]);
+    setLcd(["Enter Code", ""]);
   }
 
   /** Production pairing path: exchange a claim code for box credentials. */
@@ -149,7 +158,7 @@ export default function SimulatorPage() {
       );
       setConnected(true);
       setLocked(true);
-      setLcd(["Box claimed!", "Enter passcode"]);
+      setLcd(["Box claimed!", "Enter Code"]);
     } catch {
       setStatus("Claim failed — check connection");
     } finally {
@@ -236,8 +245,9 @@ export default function SimulatorPage() {
       setLocked(false);
       setGreenOn(true);
       setRedOn(false);
-      setLcd(["Correct!", "Leave parcel, take"]);
-      setTimeout(() => setLcd(["payment, press button", "when done"]), 1600);
+      unlockedAt.current = Date.now();
+      setLcd(["Correct passcode", ""]);
+      setTimeout(() => setLcd(["Press # to lock", ""]), 1600);
       try {
         await postEvent("/api/device/used", { boxId, codeId: usedCodeId });
         pendingUsed.current = null;
@@ -246,7 +256,7 @@ export default function SimulatorPage() {
         setStatus("Can't reach server — will retry");
       }
     } else {
-      setLcd(["Incorrect!", ""]);
+      setLcd(["Wrong passcode", ""]);
       flashRed();
       void reportWrong();
     }
@@ -260,19 +270,38 @@ export default function SimulatorPage() {
       setLcd(["Locked out", ""]);
       return;
     }
+    if (s.phase === "open") {
+      // '#' locks the box again; ignored briefly after unlocking so the
+      // same press that opened it can't immediately re-lock.
+      if (k === "#" && Date.now() - unlockedAt.current > OPEN_GUARD_MS) {
+        void confirmLock();
+      }
+      return;
+    }
     if (k === "*") {
       setEntry("");
-      setLcd(["Enter passcode", ""]);
+      setLcd(["Enter Code", ""]);
       return;
     }
     if (k === "#") {
+      if (s.entry.length < CODE_LEN) {
+        setEntry("");
+        setLcd(["Enter 6 digits", ""]);
+        setTimeout(() => {
+          if (stateRef.current.phase === "idle" && stateRef.current.entry === "") {
+            setLcd(["Enter Code", ""]);
+          }
+        }, 1200);
+        return;
+      }
       void submit();
       return;
     }
-    if (s.entry.length >= 8) return;
+    if (k < "0" || k > "9") return; // ignore A, B, C, D
+    if (s.entry.length >= CODE_LEN) return;
     const next = s.entry + k;
     setEntry(next);
-    setLcd(["Enter passcode", "*".repeat(next.length)]);
+    setLcd(["Enter Code", "*".repeat(next.length)]);
   }
 
   async function confirmLock() {
@@ -280,7 +309,11 @@ export default function SimulatorPage() {
     setLocked(true);
     setGreenOn(false);
     setPhase("idle");
-    setLcd(["Enter passcode", ""]);
+    setEntry("");
+    setLcd(["Box locked", ""]);
+    setTimeout(() => {
+      if (stateRef.current.phase === "idle") setLcd(["Enter Code", ""]);
+    }, 2000);
     try {
       await postEvent("/api/device/closed", { boxId });
       pendingClosed.current = false;
@@ -299,7 +332,7 @@ export default function SimulatorPage() {
     setLocked(true);
     lastKeyAt.current = 0;
     setLcd(["Rebooting...", ""]);
-    setTimeout(() => setLcd(["Enter passcode", ""]), 900);
+    setTimeout(() => setLcd(["Enter Code", ""]), 900);
   }
 
   async function poll() {
@@ -377,7 +410,7 @@ export default function SimulatorPage() {
         if (remain <= 0) {
           setPhase("idle");
           setRedOn(false);
-          setLcd(["Enter passcode", ""]);
+          setLcd(["Enter Code", ""]);
         } else {
           setLcd(["Locked out", `${remain}s remaining`]);
         }
@@ -395,7 +428,7 @@ export default function SimulatorPage() {
 
   const phaseLabel =
     phase === "open"
-      ? "Unlocked — waiting for confirm"
+      ? "Unlocked — press # to lock"
       : phase === "lockout"
         ? "Locked out"
         : locked
@@ -557,7 +590,7 @@ export default function SimulatorPage() {
         </div>
 
         {/* Keypad */}
-        <div className="mb-4 grid grid-cols-3 gap-2">
+        <div className="mb-4 grid grid-cols-4 gap-2">
           {KEYS.map((k) => (
             <button
               key={k}
@@ -570,16 +603,6 @@ export default function SimulatorPage() {
             </button>
           ))}
         </div>
-
-        {/* Confirm button (replaces the reed switch) */}
-        <button
-          type="button"
-          onClick={() => void confirmLock()}
-          disabled={phase !== "open"}
-          className="min-h-14 w-full rounded-xl bg-amber-500 font-bold text-slate-950 transition active:bg-amber-400 disabled:opacity-30"
-        >
-          Confirm &amp; lock
-        </button>
 
         <button
           type="button"

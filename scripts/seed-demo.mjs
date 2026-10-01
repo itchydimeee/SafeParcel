@@ -154,7 +154,7 @@ ${line}
     3. Open /simulator and tap "Use demo box" (or paste the Box ID
        and device key via Manual setup).
     4. Type ${DEMO_CODE} on the keypad and press # to open;
-       press "Confirm & lock" to close it again.
+       after closing the box, press # again to lock it.
     5. Dashboard > Generate code issues a fresh one-time passcode.
 ${line}`);
 }

@@ -1,6 +1,6 @@
 # SafeDrop
 
-An automatic safe lock box for parcel delivery. The owner generates a one-time passcode in the app and shares it with the delivery driver; the driver enters it on the box keypad, leaves the parcel, takes the payment the owner left inside, closes the lid and presses the confirm button — the box locks itself again.
+An automatic safe lock box for parcel delivery. The owner generates a one-time passcode in the app and shares it with the delivery driver; the driver enters it on the box keypad, leaves the parcel, takes the payment the owner left inside, closes the lid and presses `#` again — the box locks itself again.
 
 Built with Next.js (App Router) + Firebase, plus an Arduino UNO R4 WiFi firmware for the physical box. Mobile-first UI with a bottom tab bar.
 
@@ -41,12 +41,12 @@ Open http://localhost:3000 on your phone (or DevTools mobile view).
 2. **Settings → Pair a new box** — copy the Box ID, device key and claim code (all shown once; the claim code is valid for 15 minutes).
 3. Open `/simulator` and connect it either by **claiming with the claim code** (the production path — same endpoint real hardware uses) or by pasting the Box ID + device key (the prototype path).
 4. Back on the dashboard, **Generate code** (1/6/24 h). The simulator's LCD should show it arriving within ~3 s.
-5. Test the full cycle in the simulator: wrong codes → lockout, correct code → unlock (status flips to *Used*), confirm button → locked, Reboot → used code never returns.
+5. Test the full cycle in the simulator: wrong codes → lockout, correct code → unlock (status flips to *Used*), press `#` again → locked, Reboot → used code never returns.
 
 ## Pairing & provisioning
 
 - **Prototype (hard-coded):** paste the Box ID + device key into `firmware/SafeDrop/secrets.h` and flash the sketch.
-- **Production (dynamic):** leave `BOX_ID`/`DEVICE_KEY` empty in `secrets.h`, flash once, then per box: pair in the app → hold the box's confirm button 5 s at power-on → join its `SafeDrop-Setup` Wi-Fi → enter home Wi-Fi + claim code at `http://192.168.4.1`. The box claims its key from `POST /api/device/claim` and stores everything in EEPROM — no reflashing per box.
+- **Production (dynamic):** leave `BOX_ID`/`DEVICE_KEY` empty in `secrets.h`, flash once, then per box: pair in the app → hold the box's `*` key at power-on for 5 s → join its `SafeDrop-Setup` Wi-Fi → enter home Wi-Fi + claim code at `http://192.168.4.1`. The box claims its key from `POST /api/device/claim` and stores everything in EEPROM — no reflashing per box.
 
 Multiple boxes per account and multiple accounts are supported out of the box (each box record stores its owner; the dashboard has a box selector).
 

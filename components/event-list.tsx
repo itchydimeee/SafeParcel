@@ -13,7 +13,7 @@ const EVENT_META: Record<
   code_wrong: { label: "Wrong code attempt", dot: "bg-amber-400" },
   lockout: { label: "Box locked out (3 wrong tries)", dot: "bg-red-400" },
   opened: { label: "Box unlocked", dot: "bg-emerald-400" },
-  closed: { label: "Delivery confirmed — box locked", dot: "bg-slate-400" },
+  closed: { label: "Box locked", dot: "bg-slate-400" },
   code_expired: { label: "Code expired", dot: "bg-amber-400" },
 };
 
