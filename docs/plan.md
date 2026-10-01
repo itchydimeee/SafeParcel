@@ -38,7 +38,7 @@ Matching happens on the box, not on the server, so the driver still gets in if t
 
 | Part | Notes |
 |---|---|
-| Arduino UNO R4 WiFi | Built-in Wi-Fi with HTTPS via `WiFiS3`. An ESP32 also works. |
+| Arduino UNO R4 WiFi **or** ESP32 DevKit (WROOM-32) | UNO: Wi-Fi with HTTPS via `WiFiS3` (CA loaded with the Firmware Updater). ESP32: `WiFiClientSecure` with the CA compiled in. Sketches: `firmware/SafeDrop/` and `firmware/SafeDrop_ESP32/`. |
 | 4x4 membrane keypad (HX-543) | Driver enters the code; A, B, C, D are ignored |
 | 16x2 I2C LCD (address 0x27) | Shows "Enter Code", "Correct passcode" or "Wrong passcode" |
 | Red LED, green LED, 2x 220 ohm resistors | Wrong / correct indicators |
@@ -63,6 +63,8 @@ Matching happens on the box, not on the server, so the driver still gets in if t
 | Servo power | External 5V supply, **GND shared with the Arduino** |
 
 Never power the servo from the Arduino's 5V pin.
+
+For the ESP32 variant, the pin map changes (all "safe" GPIOs, no strapping pins), the LCD goes through a 2-channel I2C level shifter (the ESP32 is 3.3 V and not 5 V tolerant), and the LED resistors drop to 100–150 ohm. See `docs/SafeDrop_Wiring_Guide_3_ESP32.md`.
 
 ## 5. Firmware plan
 
